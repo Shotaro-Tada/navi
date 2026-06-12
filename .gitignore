@@ -1,0 +1,11 @@
+# --- 個人情報・記憶 (公開リポに絶対に含めない) ---
+memory/
+config.json
+design/
+themes/custom_*/
+launch.log
+*.log
+
+# --- ビルド生成物 ---
+node_modules/
+dist/

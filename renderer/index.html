@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'" />
+  <title>NAVI.exe</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="titlebar">
+    <span id="title">NAVI.exe</span>
+    <div id="winbtns">
+      <button id="btn-gen" type="button" title="ドット絵の自動生成">✎</button>
+      <button id="btn-slp" type="button" title="記憶の固定化">⛩</button>
+      <button id="btn-min" type="button" title="最小化">─</button>
+      <button id="btn-close" type="button" title="終了 (記憶を固定して終了)">×</button>
+    </div>
+  </div>
+
+  <div id="stage">
+    <canvas id="bg-canvas" width="380" height="180"></canvas>
+    <canvas id="fx-canvas" width="95" height="45"></canvas>
+    <canvas id="aura-canvas" width="80" height="80"></canvas>
+    <canvas id="navi-canvas" width="96" height="96"></canvas>
+    <div id="navi-status">STANDBY</div>
+    <div id="model-tabs">
+      <button type="button" data-tier="sonnet" class="active" title="日常の祈り">Sonnet</button>
+      <button type="button" data-tier="opus" title="強い祈り — 金色のオーラ">Opus</button>
+      <button type="button" data-tier="fable" title="最大の祈り — 光輝のオーラ">Fable</button>
+    </div>
+  </div>
+
+  <div id="chat"></div>
+
+  <form id="input-area">
+    <input id="input" type="text" placeholder="NAVIに話しかける…" autocomplete="off" />
+    <button id="send" type="submit">▶</button>
+  </form>
+
+  <!-- 初回チュートリアル (config.tutorialDone が false のときのみ tutorial.js が表示する) -->
+  <div id="tutorial" class="hidden">
+    <div id="tutorial-box">
+      <div id="tut-dots"><span data-dot="1"></span><span data-dot="2"></span><span data-dot="3"></span><span data-dot="4"></span></div>
+
+      <section class="tut-step" data-step="1">
+        <h2>ようこそ — NAVI.exe</h2>
+        <p>NAVI.exe は Claude Code (Anthropic) のサブスクリプション認証で動作します。未設定の場合はターミナルで claude を実行してログインしてください。GPT 等の他社バックエンドは将来対応予定で、現在は Claude のみ対応です。</p>
+        <p id="tut-auth-status">認証状態を確認しています…</p>
+      </section>
+
+      <section class="tut-step" data-step="2">
+        <h2>言語 / Language</h2>
+        <p>NAVI の応答言語を選んでください。/ Choose the response language.</p>
+        <div class="tut-cards">
+          <button type="button" class="tut-card" data-lang="ja"><strong>日本語</strong><span>日本語で応答します</span></button>
+          <button type="button" class="tut-card" data-lang="en"><strong>English</strong><span>Responds in English</span></button>
+        </div>
+      </section>
+
+      <section class="tut-step" data-step="3">
+        <h2>人格と舞台</h2>
+        <div class="tut-cards">
+          <button type="button" class="tut-card" data-theme="izanami"><strong>イザナミ</strong><span>巫女 × 神社の夜 — 落ち着いた相棒</span></button>
+          <button type="button" class="tut-card" data-theme="kaguya"><strong>カグヤ</strong><span>月の姫 × 月面とアポロ風着陸船 — 活発</span></button>
+          <button type="button" class="tut-card" data-theme="auto"><strong>自動生成</strong><span>あなたの望む人格と舞台をその場で描き起こします (チュートリアル完了後に生成パネルが開きます)</span><span class="tut-warn">⚠ ドット絵の自動生成は1回あたり数万トークン規模を消費します (Claude Max プランの利用枠を大きく消費します)。生成は現在の祈りの段位 (モデルタブ) のモデルで行われ、上位ほど品質と消費が増えます。プリセット選択なら消費はありません。</span></button>
+        </div>
+      </section>
+
+      <section class="tut-step" data-step="4">
+        <h2>準備完了</h2>
+        <p id="tut-summary"></p>
+        <p>「はじめる」を押すと設定を保存し、画面を読み直して開始します。</p>
+      </section>
+
+      <div id="tut-nav">
+        <button id="tut-back" type="button">← 戻る</button>
+        <button id="tut-next" type="button">進む →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ドット絵自動生成パネル (✎ ボタン / チュートリアル「自動生成」→ reload 後に renderer/generator.js が開く) -->
+  <div id="genpanel" class="hidden">
+    <div id="genpanel-box">
+      <h2>ドット絵の自動生成</h2>
+      <p>望む人格と舞台を自由に説明してください。キャラクターのドット絵・背景・性格をその場で描き起こします。</p>
+      <textarea id="gen-desc" rows="4" placeholder="例: 銀髪の魔女と満月の夜の魔法図書館。クールだが面倒見が良い。"></textarea>
+      <p id="gen-warn">⚠ 1回の生成で数万トークン規模を消費します (Claude Max プラン利用枠)。現在の祈りの段位 (モデルタブ) で生成され、上位モデルほど品質と消費が増えます。</p>
+      <p id="gen-status" class="hidden"></p>
+      <div id="gen-btns">
+        <button id="gen-cancel" type="button">キャンセル</button>
+        <button id="gen-run" type="button">生成</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="bg.js"></script>
+  <script src="fx.js"></script>
+  <script src="sprite.js"></script>
+  <script src="aura.js"></script>
+  <script src="app.js"></script>
+  <script src="voice.js"></script>
+  <script src="tutorial.js"></script>
+  <script src="generator.js"></script><!-- tutorial.js の後 (reload 越えフラグ復元の後に読む) -->
+</body>
+</html>

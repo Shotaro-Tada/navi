@@ -1,0 +1,24 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('navi', {
+  ask: (text) => ipcRenderer.send('navi:ask', text),
+  onChunk: (cb) => ipcRenderer.on('navi:chunk', (_e, text) => cb(text)),
+  onDone: (cb) => ipcRenderer.on('navi:done', () => cb()),
+  onError: (cb) => ipcRenderer.on('navi:error', (_e, msg) => cb(msg)),
+  consolidate: () => ipcRenderer.invoke('navi:consolidate'),
+  profile: () => ipcRenderer.invoke('navi:profile'),
+  getConfig: () => ipcRenderer.invoke('navi:get-config'),
+  getTheme: () => ipcRenderer.invoke('navi:get-theme'),
+  inspire: () => ipcRenderer.invoke('navi:inspire'),
+  generateTheme: (description) => ipcRenderer.invoke('navi:generate-theme', description),
+  setModel: (tier) => ipcRenderer.send('navi:set-model', tier),
+  checkAuth: () => ipcRenderer.invoke('navi:check-auth'),
+  applySetup: (setup) => ipcRenderer.invoke('navi:apply-setup', setup),
+  voiceAvailable: () => ipcRenderer.invoke('navi:voice-available'),
+  transcribe: (wav) => ipcRenderer.invoke('navi:transcribe', wav),
+  voiceFallback: () => ipcRenderer.invoke('navi:voice-fallback'),
+  onReminderStart: (cb) => ipcRenderer.on('navi:reminder-start', () => cb()),
+  onMemStatus: (cb) => ipcRenderer.on('navi:memstatus', (_e, status) => cb(status)),
+  close: () => ipcRenderer.send('navi:close'),
+  minimize: () => ipcRenderer.send('navi:minimize'),
+});

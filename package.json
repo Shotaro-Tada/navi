@@ -1,0 +1,45 @@
+{
+  "name": "navi-exe",
+  "version": "0.7.0",
+  "description": "NAVI.exe - pixel-art personal navigator powered by Claude (Agent SDK, subscription auth)",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "jp.precam.navi",
+    "productName": "NAVI",
+    "asar": false,
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "files": [
+      "src/**",
+      "renderer/**",
+      "themes/**",
+      "seed/**",
+      "package.json",
+      "node_modules/**"
+    ],
+    "directories": {
+      "output": "dist"
+    }
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "latest"
+  },
+  "devDependencies": {
+    "electron": "latest",
+    "electron-builder": "^26.15.2"
+  }
+}
