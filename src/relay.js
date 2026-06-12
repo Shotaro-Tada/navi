@@ -21,8 +21,18 @@ function tokenMatches(header, token) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+// CORS ヘッダ: Capacitor WebView (origin http://localhost) からの fetch を許す。
+// 認可は従来どおり Bearer トークンが担う — CORS は「ブラウザが応答を読めるか」の層であり、
+// これを開いてもトークン無しのアクセスは 401 のまま (リレー自体も Tailscale 網内限定)。
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Max-Age': '600',
+};
+
 function sendJson(res, status, obj) {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...CORS_HEADERS });
   res.end(JSON.stringify(obj));
 }
 
@@ -64,6 +74,13 @@ function readJsonBody(req) {
 export function createRelayServer(deps) {
   return http.createServer(async (req, res) => {
     try {
+      // CORS preflight (OPTIONS) はブラウザが Authorization 無しで送るため、認証より先に応答する。
+      // ここで許可するのは「本リクエストを送ってよいか」の確認のみで、データは返さない。
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, CORS_HEADERS);
+        res.end();
+        return;
+      }
       // 全エンドポイントで認証必須 (不一致・欠落は 401)
       if (!tokenMatches(req.headers.authorization, deps.token)) {
         sendJson(res, 401, { error: 'unauthorized' });

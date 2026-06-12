@@ -1,6 +1,6 @@
 {
-  "version": "0.8.0",
-  "notes": "v0.8.0: PC オフライン時の GitHub 記憶直読み (閲覧モード) — 挨拶の正常化 + ☾ で記憶索引表示。STANDBY タップで GitHub トークン設定",
+  "version": "0.8.1",
+  "notes": "v0.8.1: リレーに CORS/preflight 対応 (Capacitor WebView からの fetch を許可) — モバイル接続不能の根本修正",
   "windows": "https://github.com/Shotaro-Tada/navi/releases/latest",
   "android": null
 }

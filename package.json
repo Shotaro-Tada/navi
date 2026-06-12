@@ -1,6 +1,6 @@
 {
   "name": "navi-exe",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "NAVI.exe - pixel-art personal navigator powered by Claude (Agent SDK, subscription auth)",
   "type": "module",
   "main": "src/main.js",
