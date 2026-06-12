@@ -231,11 +231,14 @@
     voiceAvailable: async () => false,
     transcribe: async () => { throw new Error(PC_ONLY); },
     voiceFallback: async () => false,
+    voiceTtsAvailable: async () => false, // VOICEVOX 読み上げは PC 側のみ
+    setVoice: () => { /* PC 側のみ */ },
 
     // PC 側のみのイベント — 購読だけ受け付けて何も発火しない
     onReminderStart: subscribeNoop,
     onUpdateAvailable: subscribeNoop,
     onMemStatus: subscribeNoop,
+    onSpeakWav: subscribeNoop, // 読み上げ WAV は PC 側のみ発火
 
     openExternal: (url) => { window.open(url, '_blank', 'noopener'); },
     close: () => { /* モバイルでは閉じない */ },

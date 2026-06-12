@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http: https:; style-src 'self'" /><!-- connect-src の http:/https: は Capacitor 版が PC リレー (navi-shim.js) へ fetch するため -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http: https:; style-src 'self'; media-src 'self' blob:" /><!-- connect-src の http:/https: は Capacitor 版が PC リレー (navi-shim.js) へ fetch するため。media-src の blob: は読み上げ WAV (VOICEVOX) の Audio 再生用 -->
 
   <title>NAVI.exe</title>
   <link rel="stylesheet" href="style.css" />
@@ -12,6 +12,8 @@
   <div id="titlebar">
     <span id="title">NAVI.exe</span>
     <div id="winbtns">
+      <button id="btn-bgm" type="button" title="BGM (和風ループ)">♪</button>
+      <button id="btn-voice" type="button" title="読み上げ (VOICEVOX)">🔊</button>
       <button id="btn-sync" type="button" title="記憶を GitHub と同期 (pull + push)">☾</button>
       <button id="btn-gen" type="button" title="ドット絵の自動生成">✎</button>
       <button id="btn-slp" type="button" title="記憶の固定化">⛩</button>
@@ -47,6 +49,7 @@
 
       <section class="tut-step" data-step="1">
         <h2>ようこそ — NAVI.exe</h2>
+        <p>NAVI は会話型 AI です。あなたとの会話を通じて記憶し、性格も少しずつ成長します。最初から完璧な応答ができるとは限りませんが、対話を重ねるほど、あなたに馴染んでいきます。</p>
         <p>NAVI.exe は Claude Code (Anthropic) のサブスクリプション認証で動作します。未設定の場合はターミナルで claude を実行してログインしてください。GPT 等の他社バックエンドは将来対応予定で、現在は Claude のみ対応です。</p>
         <p id="tut-auth-status">認証状態を確認しています…</p>
       </section>
@@ -96,6 +99,8 @@
       </div>
     </div>
   </div>
+
+  <audio id="bgm" src="assets/bgm.wav" loop preload="auto"></audio><!-- 和風ループ BGM (build/make_bgm.py で合成、♪ トグルは app.js) -->
 
   <script src="navi-shim.js"></script><!-- 必ず app.js より前 — preload が無い環境 (Capacitor/ブラウザ) でのみ window.navi を HTTP 実装で定義 -->
   <script src="bg.js"></script>

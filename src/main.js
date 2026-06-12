@@ -1,5 +1,5 @@
 import electron from 'electron';
-const { app, BrowserWindow, ipcMain, Notification, session, shell } = electron;
+const { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, session, shell } = electron;
 import path from 'node:path';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
@@ -11,6 +11,7 @@ import {
   setPersonaCharacter, setLanguage, resetSession, MEMORY_DIR, MEMORY_PATH,
 } from './agent.js';
 import { startRelay } from './relay.js';
+import { speak, isTtsAvailable } from './tts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.join(__dirname, '..');
@@ -43,6 +44,8 @@ const CONFIG_DEFAULTS = {
   tutorialDone: false, // 初回チュートリアル完了済みか
   reminder: { enabled: true, time: '07:00', lastFired: '' },
   relay: { enabled: false, port: 17760, token: '' }, // Android 版の入口 (src/relay.js)
+  voice: { enabled: true, speakerName: '九州そら', styleName: 'ノーマル' }, // VOICEVOX 読み上げ (src/tts.js)
+  tray: { closeToTray: true }, // true: ×はトレイへ隠すだけ (終了はトレイの「固定化して終了」)
 };
 
 function loadConfig() {
@@ -53,6 +56,8 @@ function loadConfig() {
       ...parsed,
       reminder: { ...CONFIG_DEFAULTS.reminder, ...(parsed.reminder ?? {}) },
       relay: { ...CONFIG_DEFAULTS.relay, ...(parsed.relay ?? {}) },
+      voice: { ...CONFIG_DEFAULTS.voice, ...(parsed.voice ?? {}) },
+      tray: { ...CONFIG_DEFAULTS.tray, ...(parsed.tray ?? {}) },
     };
   } catch {
     return structuredClone(CONFIG_DEFAULTS);
@@ -116,12 +121,14 @@ function createWindow() {
   });
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 
-  // 閉じる操作を一度横取りし、記憶を固定化してから終了する
+  // 閉じる操作を一度横取りする。closeToTray 有効時は隠すだけで常駐を続け
+  // (リレー・リマインドは動き続ける)、終了はトレイの「⛩ 記憶を固定化して終了」から。
+  // 無効時は従来どおり記憶を固定化してから終了する。
   win.on('close', (e) => {
-    if (!quitting) {
-      e.preventDefault();
-      shutdownWithConsolidation();
-    }
+    if (quitting) return;
+    e.preventDefault();
+    if (config.tray.closeToTray) win.hide();
+    else shutdownWithConsolidation();
   });
 }
 
@@ -241,6 +248,56 @@ function startRelayIfEnabled() {
   }
 }
 
+// ---- タスクトレイ常駐 ----
+// closeToTray 時の生存点。tray はモジュール変数に保持する (GC でアイコンが消えるのを防ぐ)。
+let tray = null;
+
+function toggleWindowVisible() {
+  if (!win) return;
+  if (win.isVisible()) {
+    win.hide();
+  } else {
+    win.show(); // reload はしない — チャット履歴はそのまま残る
+    win.focus();
+  }
+}
+
+function updateTrayTooltip() {
+  tray?.setToolTip(`NAVI.exe — ${themeName}`);
+}
+
+function createTray() {
+  // アイコン: 開発時は APP_ROOT/build/icon.ico、パッケージ時は resources 配下も探す
+  const candidates = [
+    path.join(APP_ROOT, 'build', 'icon.ico'),
+    path.join(process.resourcesPath ?? '', 'build', 'icon.ico'),
+  ];
+  const iconPath = candidates.find((p) => p && existsSync(p));
+  try {
+    tray = new Tray(iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty());
+  } catch (err) {
+    console.log('[tray] create failed:', err?.message ?? err); // トレイ無しでも起動は続行
+    return;
+  }
+  updateTrayTooltip();
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '表示/隠す', click: toggleWindowVisible },
+    {
+      label: '☾ 記憶を同期',
+      click: async () => {
+        const msg = await syncMemoryNow();
+        new Notification({
+          title: `☾ ${themeName}`,
+          body: msg.replace(/^☾\s*/, '').slice(0, 150),
+        }).show();
+      },
+    },
+    { type: 'separator' },
+    { label: '⛩ 記憶を固定化して終了', click: shutdownWithConsolidation },
+  ]));
+  tray.on('double-click', toggleWindowVisible);
+}
+
 app.whenReady().then(() => {
   app.setAppUserModelId('NAVI.exe'); // Windows 通知の表示名
   // レンダラのマイク利用 (getUserMedia) を許可する (音声入力用)
@@ -249,6 +306,7 @@ app.whenReady().then(() => {
   });
   probeVoiceCultures(); // 音声認識エンジンの有無を起動時に1回プローブ
   createWindow();
+  createTray(); // タスクトレイ常駐 (表示切替・同期・固定化して終了)
   checkForUpdate(); // 非同期 (オフライン時は静かに諦める)
   syncMemoryPull(); // 非同期 (失敗しても起動を妨げない)
   startRelayIfEnabled(); // 既定は無効 (config.relay.enabled)
@@ -300,7 +358,12 @@ app.on('window-all-closed', () => {
 });
 
 // ---- IPC ----
-ipcMain.on('navi:close', shutdownWithConsolidation);
+// × ボタン (renderer の #btn-close): closeToTray 有効時はトレイへ隠すだけ。
+// 無効時は従来どおり記憶を固定化して終了する。
+ipcMain.on('navi:close', () => {
+  if (config.tray.closeToTray) win?.hide();
+  else shutdownWithConsolidation();
+});
 ipcMain.on('navi:minimize', () => win?.minimize());
 
 // チャット内リンクを既定ブラウザで開く (https?: のみ許可)
@@ -357,6 +420,7 @@ ipcMain.handle('navi:apply-setup', (_e, setup) => {
       config.theme = String(themeId);
       theme = next;
       themeName = next?.name || themeName;
+      updateTrayTooltip();
       if (next?.personaCharacter) setPersonaCharacter(next.personaCharacter);
       renameMemoryIndex(next?.name);
       resetSession(); // 人格が変わるので次の ask から新規セッション
@@ -382,6 +446,7 @@ ipcMain.handle('navi:generate-theme', async (_e, description) => {
     config.theme = id;
     theme = next;
     themeName = next?.name || themeName;
+    updateTrayTooltip();
     if (next?.personaCharacter) setPersonaCharacter(next.personaCharacter);
     renameMemoryIndex(next?.name);
     resetSession(); // 人格が変わるので次の ask から新規セッション
@@ -418,14 +483,39 @@ ipcMain.on('navi:set-model', (_e, tier) => {
 ipcMain.on('navi:ask', async (event, text) => {
   chatBusy = true;
   try {
+    let full = '';
     for await (const chunk of ask(text)) {
+      full += (full ? '\n' : '') + chunk;
       event.sender.send('navi:chunk', chunk);
     }
     event.sender.send('navi:done');
+    speakReply(full, event.sender); // 非同期 — 合成を待たずに次の入力を受け付ける
   } catch (err) {
     event.sender.send('navi:error', String(err?.message ?? err));
   }
   chatBusy = false;
+});
+
+// ---- 読み上げ (VOICEVOX 連携、PC 版のみ — src/tts.js) ----
+// 応答全文を WAV に合成して renderer (navi:speak-wav) へ送る。エンジン不達時は
+// speak() が null を返すだけなので、音声なしの通常動作に自然に戻る。
+function speakReply(text, sender) {
+  if (!config.voice.enabled || quitting || !text) return;
+  speak(text, config.voice)
+    .then((wav) => {
+      if (!wav || quitting) return;
+      (sender ?? win?.webContents)?.send('navi:speak-wav', Buffer.from(wav));
+    })
+    .catch(() => { /* 音声は補助機能 — 失敗しても会話は成立する */ });
+}
+
+// エンジン稼働可否 (renderer が 🔊 ボタンの表示判定に使う)
+ipcMain.handle('navi:voice-tts-available', async () => await isTtsAvailable());
+
+// 🔊 トグルの永続化 (renderer の #btn-voice)
+ipcMain.on('navi:set-voice', (_e, enabled) => {
+  config.voice.enabled = !!enabled;
+  saveConfig();
 });
 
 // ---- 音声入力 (Windows SAPI / System.Speech) ----
@@ -534,6 +624,7 @@ async function fireReminder() {
       win.webContents.send('navi:chunk', chunk);
     }
     win.webContents.send('navi:done');
+    speakReply(full); // 読み上げ (VOICEVOX、エンジン未稼働なら無音)
     new Notification({
       title: `⛩ ${themeName}からのお知らせ`,
       body: (full || '本日の予定をご確認ください。').slice(0, 150),

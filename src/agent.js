@@ -80,11 +80,27 @@ function loadMemory() {
   }
 }
 
-function buildSystemPrompt() {
+// 人格の成長記録 (v0.9): 会話とともに育つ人格層。固定化時に 1〜2 行ずつ追記される。
+// 「名前:」「呼び方:」は索引 (NAVI_MEMORY.md) 側にのみ置く規約のため getProfile には影響しない。
+export const PERSONALITY_PATH = path.join(MEMORY_DIR, 'personality.md');
+
+function loadPersonality() {
+  try {
+    return readFileSync(PERSONALITY_PATH, 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
+export function buildSystemPrompt() {
   const langLine = language === 'en'
     ? '応答言語: English — 常に英語で応答する (人格・口調の方針はそのまま英語で表現する)。'
     : '応答言語: 日本語';
-  return `${personaCharacter}
+  const personality = loadPersonality();
+  const personalityBlock = personality
+    ? `\n\n## あなたの育った人格 (会話の蓄積)\n${personality}`
+    : '';
+  return `${personaCharacter}${personalityBlock}
 
 ${langLine}
 
@@ -174,9 +190,10 @@ const CONSOLIDATE_PROMPT = `[記憶の固定化 — 生態系記憶]
    - 新しい主題は ${MEMORY_DIR} に mem_<英数>.md を新規作成し、索引の「記憶の索引」に必ず1行追加する (- [タイトル](ファイル名) — 要約)。
    - 常時必要な核 (名前・呼び方・言語・応答スタイル) だけ索引の常時記憶セクションに置く。
 3. 剪定・忘却する: 陳腐化・解決済み・重複は個別ファイル内で統合する。新しい記述には日付 (YYYY-MM-DD) を添える。長く更新も参照もされていない項目は重要度が下がったとみなし、個別ファイルから ${MEMORY_DIR}/archive/ へ移す (忘却 — ただし archive に残るので、問われれば思い出せる)。索引と実在ファイルの一致を保つ。
-4. 目安: 索引80行以内、個別ファイル各150行以内。
+4. 目安: 索引100行以内、個別ファイル各200行以内。
 5. 永続化すべき新事項が無ければ何も変更しない。
 6. 「名前:」「呼び方: 「…」」の行の書式は維持する (アプリUIが読む)。
+7. 人格の成長: この会話で生まれた口調の癖・新しい興味・ふたりの習慣があれば ${PERSONALITY_PATH} へ 1〜2 行まで追記・修正してよい (ファイル先頭の規約に従う。核の設定・安全規範は不変)。
 
 完了後、何を固定化・剪定・アーカイブしたかを2文以内で報告せよ (チャット画面にそのまま表示される)。`;
 

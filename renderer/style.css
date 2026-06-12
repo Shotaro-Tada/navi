@@ -38,6 +38,8 @@ body { display: flex; flex-direction: column; height: 100vh; }
 #winbtns button:hover { background: var(--line); }
 #btn-slp:hover { background: #1d4a3e; }
 #btn-close:hover { background: #a23; }
+#btn-voice.off { opacity: 0.45; } /* 読み上げ OFF (🔇) の消灯表示 */
+#btn-bgm.off { opacity: 0.45; } /* BGM OFF (♪) の消灯表示 */
 
 #stage {
   position: relative;

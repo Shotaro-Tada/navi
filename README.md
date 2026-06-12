@@ -57,6 +57,17 @@ npm start
 - **感情表現**: イザナミが応答末尾に不可視タグ [emo:joy/blush/sad/none] で感情を自己申告し、表情 (喜び・頬染め・悲しみ) が数秒表示される
 - **新奇演出**: Sonnet の極小クエリでイザナミが天候 (雪/雨/蛍/花びら) と和の一言を選び、境内に降らせる。効果は安全な語彙に限定し、描画はアプリ側部品が担当
 
+## 音声読み上げ (VOICEVOX 連携、PC 版のみ)
+
+- イザナミの応答 (会話 + 定時リマインド) を **VOICEVOX** で読み上げる。**音声合成: VOICEVOX (キャラクター: 九州そら)**
+- ローカルの VOICEVOX エンジン (`http://127.0.0.1:50021`) を利用。**エンジン未稼働でもアプリは音声なしで通常動作する** (失敗はすべて無音に落ちる)
+- タイトルバーの **🔊 ボタン**で ON/OFF (`config.json` の `voice.enabled` に永続化)。話者は `voice.speakerName` / `voice.styleName` (既定: 九州そら / ノーマル) で変更可。読み上げテキストは感情タグ・URL・マークダウン記号を除いた冒頭300文字
+- **導入手順**:
+  1. `winget install HiroshibaKazuyuki.VOICEVOX.CPU --accept-package-agreements --accept-source-agreements` (GPU 版は `HiroshibaKazuyuki.VOICEVOX`)。または公式サイト https://voicevox.hiroshiba.jp/ のインストーラーを使用
+  2. VOICEVOX を起動する (エディタ起動でエンジンも同時に立ち上がる)。エンジンのみのバックグラウンド起動なら `VOICEVOX\vv-engine\run.exe` を実行 — 公式インストーラーなら `%LOCALAPPDATA%\Programs\VOICEVOX\vv-engine\run.exe`、winget (portable zip) なら `%LOCALAPPDATA%\Microsoft\WinGet\Packages\HiroshibaKazuyuki.VOICEVOX.CPU_Microsoft.Winget.Source_8wekyb3d8bbwe\VOICEVOX\vv-engine\run.exe`
+  3. NAVI.exe を起動 (エンジン稼働中なら 🔊 ボタンが現れる)
+- VOICEVOX の利用規約 (各キャラクターの音源ライセンス) は https://voicevox.hiroshiba.jp/ を参照。九州そらの音声を公開物で利用する場合はクレジット「VOICEVOX:九州そら」が必要
+
 ## 将来構想
 
 - キャラクターデザインの本格化 (sprite.js の文字マップを差し替え)

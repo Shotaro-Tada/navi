@@ -142,6 +142,89 @@ window.navi.onError((msg) => {
   sprite?.showEmotion('sad', 3500);
 });
 
+// ---- 🔊 読み上げ (VOICEVOX、PC 版のみ) ----
+// main が応答全文を WAV (navi:speak-wav) で送ってくる。Blob → Audio で再生し、
+// 多重発話は前の再生を止めてから。トグル OFF 中は受信しても再生しない。
+const voiceBtn = document.getElementById('btn-voice');
+let voiceEnabled = true;
+let voiceAudio = null;
+let voiceAudioUrl = null;
+
+function updateVoiceBtn() {
+  voiceBtn.textContent = voiceEnabled ? '🔊' : '🔇';
+  voiceBtn.title = voiceEnabled ? '読み上げ ON (VOICEVOX) — クリックで OFF' : '読み上げ OFF — クリックで ON';
+  voiceBtn.classList.toggle('off', !voiceEnabled);
+}
+
+function stopVoice() {
+  if (voiceAudio) {
+    try { voiceAudio.pause(); } catch { /* 再生前の pause 失敗は無視 */ }
+    voiceAudio = null;
+  }
+  if (voiceAudioUrl) {
+    URL.revokeObjectURL(voiceAudioUrl);
+    voiceAudioUrl = null;
+  }
+}
+
+function playVoiceWav(wav) {
+  if (voiceBtn.style.display === 'none') voiceBtn.style.display = ''; // エンジンが後から起動した場合にトグルを出す
+  if (!voiceEnabled || !wav) return;
+  stopVoice(); // 多重発話防止: 前の再生を止めてから
+  voiceAudioUrl = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
+  const audio = new Audio(voiceAudioUrl);
+  voiceAudio = audio;
+  audio.onended = () => { if (voiceAudio === audio) stopVoice(); };
+  audio.play().catch(() => { if (voiceAudio === audio) stopVoice(); });
+}
+
+if (typeof window.navi.onSpeakWav === 'function') window.navi.onSpeakWav(playVoiceWav);
+
+voiceBtn.addEventListener('click', () => {
+  voiceEnabled = !voiceEnabled;
+  if (!voiceEnabled) stopVoice();
+  updateVoiceBtn();
+  if (typeof window.navi.setVoice === 'function') window.navi.setVoice(voiceEnabled); // config.voice.enabled へ永続化
+});
+
+// ---- ♪ BGM (和風ループ、renderer/assets/bgm.wav — build/make_bgm.py で合成) ----
+// 既定 ON。ブラウザ/Electron の自動再生制限があるため、最初のユーザー操作
+// (click / keydown) を待って再生を開始する。トグル状態は localStorage に永続化
+// (モバイル = navi-shim 環境でも効くように config ではなく localStorage)。
+const bgmEl = document.getElementById('bgm');
+const bgmBtn = document.getElementById('btn-bgm');
+let bgmEnabled = localStorage.getItem('bgmEnabled') !== 'off';
+let bgmUnlocked = false; // 最初のユーザー操作を受けたか (自動再生制限の解除)
+bgmEl.volume = 0.35;
+
+function updateBgmBtn() {
+  bgmBtn.title = bgmEnabled ? 'BGM ON — クリックで OFF' : 'BGM OFF — クリックで ON';
+  bgmBtn.classList.toggle('off', !bgmEnabled);
+}
+
+function syncBgm() {
+  if (bgmEnabled && bgmUnlocked) {
+    bgmEl.play().catch(() => { /* 再生拒否 (自動再生制限など) は次のユーザー操作 ♪ で再試行 */ });
+  } else {
+    bgmEl.pause();
+  }
+}
+
+function unlockBgm() {
+  bgmUnlocked = true;
+  syncBgm();
+}
+window.addEventListener('click', unlockBgm, { once: true });
+window.addEventListener('keydown', unlockBgm, { once: true });
+
+bgmBtn.addEventListener('click', () => {
+  bgmEnabled = !bgmEnabled;
+  localStorage.setItem('bgmEnabled', bgmEnabled ? 'on' : 'off');
+  updateBgmBtn();
+  syncBgm();
+});
+updateBgmBtn();
+
 // ---- 定時リマインド ----
 window.navi.onReminderStart(() => {
   addMsg('reminder', '⏰ 定時リマインド');
@@ -237,11 +320,26 @@ setInterval(() => {
   sprite = new NaviSprite(document.getElementById('navi-canvas'), charData);
   window.drawNaviBg(document.getElementById('bg-canvas'), theme?.bg);
 
-  // 2. 設定 (モデル階梯)
+  // 2. 設定 (モデル階梯 + 読み上げトグル)
   try {
     const cfg = await window.navi.getConfig();
     if (cfg?.model) applyTier(cfg.model, false);
+    if (cfg?.voice) {
+      voiceEnabled = cfg.voice.enabled !== false;
+      updateVoiceBtn();
+    }
   } catch { /* 既定 sonnet で続行 */ }
+
+  // 2b. 読み上げ可否 (VOICEVOX エンジン稼働中の PC のみ 🔊 を表示。
+  //     後からエンジンが起動した場合は最初の WAV 受信時に playVoiceWav が再表示する)
+  try {
+    const ttsOk = typeof window.navi.voiceTtsAvailable === 'function'
+      ? await window.navi.voiceTtsAvailable()
+      : false;
+    if (!ttsOk) voiceBtn.style.display = 'none';
+  } catch {
+    voiceBtn.style.display = 'none';
+  }
 
   // 3. プロフィール (永続記憶の名前/呼び方) と挨拶
   let profile = null;
