@@ -29,6 +29,7 @@
       "renderer/**",
       "themes/**",
       "seed/**",
+      "scripts/transcribe.py",
       "package.json",
       "node_modules/**"
     ],
