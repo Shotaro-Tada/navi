@@ -255,8 +255,10 @@ setInterval(() => {
   setBusy(false);
   addMsg('navi', `お帰りなさいませ、${operator}。${name}、お側に控えております。本日はいかがなさいますか?`);
   // モバイル起動診断: リレーへの通信が失敗していたら理由と復旧手順を表示する
-  if (window.__naviRelayError) {
-    addMsg('error', `PC に接続できませんでした (${window.__naviRelayError})。Tailscale の接続と PC の NAVI 稼働を確認してください。上部の STANDBY 表示をタップすると接続先 (URL/トークン) を再設定できます。`);
+  if (window.__naviProfileSource === 'github') {
+    addMsg('reminder', '☆ PC に届かないため、記憶を GitHub から直読みしています (閲覧モード)。会話には PC の NAVI が必要です。☾ タップで記憶索引を表示できます。');
+  } else if (window.__naviRelayError) {
+    addMsg('error', `PC に接続できませんでした (${window.__naviRelayError})。Tailscale の接続と PC の NAVI 稼働を確認してください。上部の STANDBY 表示をタップすると接続先 (URL/トークン/GitHub) を再設定できます。`);
   }
   input.focus();
 })();

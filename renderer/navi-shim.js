@@ -11,6 +11,8 @@
   const LS_URL = 'naviRelayUrl';
   const LS_TOKEN = 'naviRelayToken';
   const LS_MODEL = 'naviModelTier';
+  const LS_GH_TOKEN = 'naviGhToken'; // GitHub fine-grained PAT (navi-memory の Contents:Read のみ)
+  const LS_GH_REPO = 'naviGhRepo';   // 既定 'Shotaro-Tada/navi-memory'
   const PC_ONLY = 'この機能は PC 側でのみ利用できます。';
 
   // ---- リレー接続設定 (localStorage) ----
@@ -82,6 +84,31 @@
     }
   }
 
+  // ---- GitHub 直読み (PC オフライン時の記憶フォールバック、読み取り専用) ----
+  // 非公開リポ navi-memory を fine-grained PAT (Contents:Read のみ) で読む。HTTPS なので
+  // cleartext 制約とも無縁。会話はできない — 記憶の閲覧と挨拶の正常化のみ。
+  function getGh() {
+    let token = '';
+    let repo = '';
+    try {
+      token = localStorage.getItem(LS_GH_TOKEN) || '';
+      repo = localStorage.getItem(LS_GH_REPO) || '';
+    } catch { /* 未設定扱い */ }
+    return { token, repo: repo || 'Shotaro-Tada/navi-memory' };
+  }
+
+  async function ghReadFile(path) {
+    const { token, repo } = getGh();
+    if (!token) throw new Error('GitHub トークン未設定');
+    const res = await fetchWithTimeout(
+      `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(path)}?ref=main`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.raw+json' } },
+      8000
+    );
+    if (!res.ok) throw new Error(`GitHub HTTP ${res.status}`);
+    return await res.text();
+  }
+
   // ---- イベント購読 (preload の ipcRenderer.on 相当) ----
   const listeners = { chunk: [], done: [], error: [] };
   // reminder / update-available / memstatus はモバイル側では発火しない (購読のみ受け付ける)
@@ -99,20 +126,36 @@
     }
   }
 
-  // ---- profile: /memory/index の記憶索引から名前/呼び方を抽出 (agent.js getProfile と同じ規則) ----
+  // ---- profile: 記憶索引から名前/呼び方を抽出 (agent.js getProfile と同じ規則) ----
+  // 取得元の優先順: PC リレー → GitHub 直読み (PC オフライン時) → /health → 既定値。
+  function parseProfile(mem) {
+    const naviSection = mem.split(/^## /m).find((s) => /^(わたし|NAVI)/.test(s));
+    const nameMatch = naviSection
+      ? naviSection.match(/^-[^\n]*名前[:：]\s*\**([^*\n（(]+)/m)
+      : null;
+    const operatorMatch = mem.match(/^-[^\n]*呼び方[:：][^\n]*?「([^」\n]+)」/m);
+    return {
+      name: nameMatch ? nameMatch[1].trim() : '',
+      operator: operatorMatch ? operatorMatch[1].trim() : '',
+    };
+  }
+
   async function profile() {
     let name = '';
     let operator = '';
+    window.__naviProfileSource = null;
     try {
-      const mem = String((await relayFetch('/memory/index')).index ?? '');
-      const naviSection = mem.split(/^## /m).find((s) => /^(わたし|NAVI)/.test(s));
-      const nameMatch = naviSection
-        ? naviSection.match(/^-[^\n]*名前[:：]\s*\**([^*\n（(]+)/m)
-        : null;
-      const operatorMatch = mem.match(/^-[^\n]*呼び方[:：][^\n]*?「([^」\n]+)」/m);
-      if (nameMatch) name = nameMatch[1].trim();
-      if (operatorMatch) operator = operatorMatch[1].trim();
-    } catch { /* 取れなければ /health の表示名で代替 */ }
+      const p = parseProfile(String((await relayFetch('/memory/index')).index ?? ''));
+      name = p.name; operator = p.operator;
+      if (name) window.__naviProfileSource = 'relay';
+    } catch { /* リレー不達 — GitHub 直読みへ */ }
+    if (!name) {
+      try {
+        const p = parseProfile(await ghReadFile('NAVI_MEMORY.md'));
+        name = p.name; operator = p.operator;
+        if (name) window.__naviProfileSource = 'github';
+      } catch { /* GitHub も不可なら /health へ */ }
+    }
     if (!name) {
       try {
         name = String((await relayFetch('/health')).name || '');
@@ -160,12 +203,19 @@
       try { localStorage.setItem(LS_MODEL, String(tier)); } catch { /* 保存不可は無視 */ }
     },
 
-    // ☾ 手動同期: PC のリレー経由で記憶を GitHub と同期させる
+    // ☾ 手動同期: PC のリレー経由で記憶を GitHub と同期させる。
+    // PC 不達で GitHub トークンがあれば、代わりに記憶索引を閲覧表示する (読み取り専用)
     syncMemory: async () => {
       try {
         return String((await relayFetch('/sync', { method: 'POST', body: '{}' }, true)).result || '☾ 同期しました');
       } catch (err) {
-        return `☾ 同期できません: ${String(err?.message ?? err)}`;
+        try {
+          const mem = await ghReadFile('NAVI_MEMORY.md');
+          const lines = mem.split(/\r?\n/).filter((l) => l.trim() && !l.startsWith('>'));
+          return `☾ PC に届かないため、GitHub の記憶索引を表示します (読み取り専用):\n${lines.slice(0, 25).join('\n')}`;
+        } catch {
+          return `☾ 同期できません: ${String(err?.message ?? err)}`;
+        }
       }
     },
 
@@ -188,7 +238,8 @@
     close: () => { /* モバイルでは閉じない */ },
     minimize: () => { /* モバイルでは最小化しない */ },
 
-    // 接続先の再設定 (app.js が STANDBY 表示タップで呼ぶ)。保存済み設定を消して聞き直す
+    // 接続先の再設定 (app.js が STANDBY 表示タップで呼ぶ)。保存済み設定を消して聞き直す。
+    // 追加で GitHub 直読み (PC オフライン時の記憶閲覧) のトークンも任意入力できる
     reconfigureRelay: () => {
       try {
         localStorage.removeItem(LS_URL);
@@ -196,6 +247,16 @@
       } catch { /* 消せなくても prompt で上書きされる */ }
       sessionRelay = null;
       const r = ensureRelay(true);
+      const gh = window.prompt(
+        'GitHub トークン (任意 — PC オフライン時に記憶を直読みする用。navi-memory の Contents:Read 権限のみの fine-grained PAT を推奨。空のままでも可)',
+        getGh().token
+      );
+      if (gh !== null) {
+        try {
+          localStorage.setItem(LS_GH_TOKEN, gh.trim());
+          if (!localStorage.getItem(LS_GH_REPO)) localStorage.setItem(LS_GH_REPO, 'Shotaro-Tada/navi-memory');
+        } catch { /* 保存不可は無視 */ }
+      }
       return !!(r && r.url);
     },
   };
