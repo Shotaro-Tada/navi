@@ -1,6 +1,6 @@
 {
-  "version": "0.7.1",
-  "notes": "v0.7.1: ☾ 記憶の手動同期ボタン (Win/Android 共通、リレー /sync 追加)",
+  "version": "0.7.2",
+  "notes": "v0.7.2: モバイル初回起動時のプロフィール自己修復 (接続確立後に名前/呼び方の表示を更新)",
   "windows": "https://github.com/Shotaro-Tada/navi/releases/latest",
   "android": null
 }

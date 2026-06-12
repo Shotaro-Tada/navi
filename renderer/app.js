@@ -256,3 +256,22 @@ setInterval(() => {
   addMsg('navi', `お帰りなさいませ、${operator}。${name}、お側に控えております。本日はいかがなさいますか?`);
   input.focus();
 })();
+
+// ---- モバイル初回起動の自己修復 ----
+// 接続情報 (リレー URL/トークン) の入力が挨拶の描画より後になった場合、
+// プロフィールが既定値 (NAVI/オペレーター様) のまま表示されてしまう。
+// 最初の応答が成功した時点でプロフィールを取り直し、表示を正す。
+let profileRefreshTried = false;
+window.navi.onDone(async () => {
+  if (profileRefreshTried) return;
+  profileRefreshTried = true;
+  if (!document.getElementById('title').textContent.endsWith('— NAVI')) return; // 既に正しい名前
+  try {
+    const p = await window.navi.profile();
+    if (p?.name && p.name !== 'NAVI') {
+      input.placeholder = `${p.name}に話しかける…`;
+      document.getElementById('title').textContent = `NAVI.exe — ${p.name}`;
+      addMsg('reminder', `☆ 接続が確立しました — ${p.name} がお側におります、${p.operator || 'オペレーター様'}。`);
+    }
+  } catch { /* 次回起動時の通常フローに任せる */ }
+});
