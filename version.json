@@ -1,6 +1,6 @@
 {
-  "version": "0.8.1",
-  "notes": "v0.8.1: リレーに CORS/preflight 対応 (Capacitor WebView からの fetch を許可) — モバイル接続不能の根本修正",
+  "version": "0.8.2",
+  "notes": "v0.8.2: 用途別タイムアウト (会話240秒/同期60秒/照会6秒) — 会話が6秒で切断される問題の修正",
   "windows": "https://github.com/Shotaro-Tada/navi/releases/latest",
   "android": null
 }

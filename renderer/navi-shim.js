@@ -62,7 +62,8 @@
     return fetch(url, { ...(options || {}), signal: ctrl.signal }).finally(() => clearTimeout(timer));
   }
 
-  async function relayFetch(pathname, options, interactive) {
+  // timeoutMs は用途別: 軽い照会=6秒 / 会話 (/ask)=240秒 (モデルの思考時間) / 同期=60秒 (git push)
+  async function relayFetch(pathname, options, interactive, timeoutMs = 6000) {
     const { url, token } = ensureRelay(interactive);
     if (!url) throw new Error('リレー URL が未設定です (送信時に再度設定できます)');
     try {
@@ -72,13 +73,15 @@
           Authorization: `Bearer ${token}`,
           ...(options && options.body ? { 'Content-Type': 'application/json' } : {}),
         },
-      });
+      }, timeoutMs);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       window.__naviRelayError = null; // 成功したら診断をクリア
       return data;
     } catch (err) {
-      const msg = err && err.name === 'AbortError' ? 'タイムアウト (6秒、到達不能)' : String(err?.message ?? err);
+      const msg = err && err.name === 'AbortError'
+        ? `タイムアウト (${Math.round(timeoutMs / 1000)}秒)`
+        : String(err?.message ?? err);
       window.__naviRelayError = `${pathname}: ${msg}`; // 起動診断用に最後の失敗を記録
       throw new Error(msg);
     }
@@ -116,7 +119,7 @@
 
   async function doAsk(text) {
     try {
-      const data = await relayFetch('/ask', { method: 'POST', body: JSON.stringify({ text }) }, true);
+      const data = await relayFetch('/ask', { method: 'POST', body: JSON.stringify({ text }) }, true, 240000);
       const reply = String(data.reply ?? '');
       // ストリーミングは無いので、返答全文を 1 チャンクとして通知してから done
       listeners.chunk.forEach((cb) => cb(reply));
@@ -207,7 +210,7 @@
     // PC 不達で GitHub トークンがあれば、代わりに記憶索引を閲覧表示する (読み取り専用)
     syncMemory: async () => {
       try {
-        return String((await relayFetch('/sync', { method: 'POST', body: '{}' }, true)).result || '☾ 同期しました');
+        return String((await relayFetch('/sync', { method: 'POST', body: '{}' }, true, 60000)).result || '☾ 同期しました');
       } catch (err) {
         try {
           const mem = await ghReadFile('NAVI_MEMORY.md');
