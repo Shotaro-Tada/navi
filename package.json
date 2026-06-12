@@ -39,6 +39,9 @@
     "@anthropic-ai/claude-agent-sdk": "latest"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
     "electron": "latest",
     "electron-builder": "^26.15.2"
   }

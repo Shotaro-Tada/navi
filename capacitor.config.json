@@ -1,0 +1,9 @@
+{
+  "appId": "jp.precam.navi",
+  "appName": "NAVI",
+  "webDir": "renderer",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  }
+}

@@ -1,14 +1,16 @@
 import electron from 'electron';
-const { app, BrowserWindow, ipcMain, Notification, session } = electron;
+const { app, BrowserWindow, ipcMain, Notification, session, shell } = electron;
 import path from 'node:path';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
   ask, consolidateMemory, getProfile, setModelTier, inspire, generateTheme,
   setPersonaCharacter, setLanguage, resetSession, MEMORY_DIR, MEMORY_PATH,
 } from './agent.js';
+import { startRelay } from './relay.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.join(__dirname, '..');
@@ -40,6 +42,7 @@ const CONFIG_DEFAULTS = {
   language: 'ja', // 'ja' | 'en' — 応答言語
   tutorialDone: false, // 初回チュートリアル完了済みか
   reminder: { enabled: true, time: '07:00', lastFired: '' },
+  relay: { enabled: false, port: 17760, token: '' }, // Android 版の入口 (src/relay.js)
 };
 
 function loadConfig() {
@@ -49,6 +52,7 @@ function loadConfig() {
       ...CONFIG_DEFAULTS,
       ...parsed,
       reminder: { ...CONFIG_DEFAULTS.reminder, ...(parsed.reminder ?? {}) },
+      relay: { ...CONFIG_DEFAULTS.relay, ...(parsed.relay ?? {}) },
     };
   } catch {
     return structuredClone(CONFIG_DEFAULTS);
@@ -133,7 +137,79 @@ async function shutdownWithConsolidation() {
   } catch {
     // 固定化失敗でも終了を妨げない
   }
+  // 固定化後の記憶を GitHub へ push (最大10秒待ち、間に合わなければ次回の push に委ねる)
+  await Promise.race([
+    syncMemoryPush(),
+    new Promise((resolve) => setTimeout(resolve, 10000)),
+  ]);
   app.exit(0);
+}
+
+// ---- 記憶の GitHub 自動同期 (memory/ は独立 git リポ: navi-memory 非公開) ----
+// git を memory/ ディレクトリで実行する。失敗 (オフライン・コンフリクト等) は
+// 呼び出し側で握りつぶし、アプリの動作を妨げない。
+function gitMemory(args, timeout = 15000) {
+  return new Promise((resolve, reject) => {
+    execFile('git', args, { cwd: MEMORY_DIR, timeout, windowsHide: true }, (err, stdout, stderr) => {
+      if (err) reject(new Error(String(stderr || err.message).trim().slice(0, 300)));
+      else resolve(String(stdout));
+    });
+  });
+}
+
+// 起動時 pull: 他PCで固定化された記憶を取り込む (--ff-only なのでコンフリクト時は何もしない)
+async function syncMemoryPull() {
+  try {
+    await gitMemory(['pull', '--ff-only']);
+    const send = () => win?.webContents.send('navi:memstatus', 'synced');
+    if (!win) return;
+    if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send);
+    else send();
+  } catch (err) {
+    console.log('[memory-sync] pull skipped:', err?.message ?? err);
+  }
+}
+
+// 固定化後 push: add → commit → push。変更が無ければ commit が exit 1 となり、
+// そのまま終了する。push 失敗は無視 (次回の push でまとめて反映される)。
+async function syncMemoryPush() {
+  try {
+    await gitMemory(['add', '-A']);
+    try {
+      await gitMemory(['commit', '-m', `memory consolidation ${new Date().toISOString()}`]);
+    } catch {
+      return; // コミットすべき変更なし
+    }
+    await gitMemory(['push']);
+  } catch (err) {
+    console.log('[memory-sync] push skipped:', err?.message ?? err);
+  }
+}
+
+// ---- PC リレーサーバ (Android 版の入口、src/relay.js) ----
+// config.relay.enabled = true のときだけ起動する (既定 false なので現運用に影響なし)。
+// token が空なら初回に生成して保存する。chatBusy は isBusy/setBusy 経由で relay と共有し、
+// PC 側チャット・リマインドと /ask が衝突しないようにする (使用中は 429)。
+function startRelayIfEnabled() {
+  if (!config.relay.enabled) return;
+  if (!config.relay.token) {
+    config.relay.token = randomUUID();
+    saveConfig();
+  }
+  try {
+    startRelay({
+      port: config.relay.port,
+      token: config.relay.token,
+      ask,
+      isBusy: () => chatBusy,
+      setBusy: (v) => { chatBusy = !!v; },
+      getName: () => themeName,
+      version: localVersion(),
+      memoryPath: MEMORY_PATH,
+    });
+  } catch (err) {
+    console.log('[relay] start failed:', err?.message ?? err);
+  }
 }
 
 app.whenReady().then(() => {
@@ -144,7 +220,51 @@ app.whenReady().then(() => {
   });
   probeVoiceCultures(); // 音声認識エンジンの有無を起動時に1回プローブ
   createWindow();
+  checkForUpdate(); // 非同期 (オフライン時は静かに諦める)
+  syncMemoryPull(); // 非同期 (失敗しても起動を妨げない)
+  startRelayIfEnabled(); // 既定は無効 (config.relay.enabled)
 });
+
+// ---- 起動時バージョン確認 ----
+// 公開リポの version.json と package.json の version を比較し、
+// 新しければ renderer へ navi:update-available を通知する。
+const VERSION_URL = 'https://raw.githubusercontent.com/Shotaro-Tada/navi/main/version.json';
+
+function localVersion() {
+  try {
+    return JSON.parse(readFileSync(path.join(APP_ROOT, 'package.json'), 'utf8')).version ?? '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+// 単純な semver 比較: "1.2.3" を数値分解して remote > local なら true
+function isNewerVersion(remote, local) {
+  const r = String(remote).split('.').map((n) => parseInt(n, 10) || 0);
+  const l = String(local).split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(r.length, l.length); i++) {
+    if ((r[i] ?? 0) !== (l[i] ?? 0)) return (r[i] ?? 0) > (l[i] ?? 0);
+  }
+  return false;
+}
+
+async function checkForUpdate() {
+  try {
+    const res = await fetch(VERSION_URL, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return;
+    const remote = await res.json();
+    if (!remote?.version || !isNewerVersion(remote.version, localVersion())) return;
+    const payload = {
+      version: String(remote.version),
+      notes: String(remote.notes ?? ''),
+      url: String(remote.windows ?? ''),
+    };
+    const send = () => win?.webContents.send('navi:update-available', payload);
+    if (!win) return;
+    if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send);
+    else send();
+  } catch { /* オフライン・タイムアウト時は無視 */ }
+}
 
 app.on('window-all-closed', () => {
   if (!quitting) app.quit();
@@ -153,7 +273,19 @@ app.on('window-all-closed', () => {
 // ---- IPC ----
 ipcMain.on('navi:close', shutdownWithConsolidation);
 ipcMain.on('navi:minimize', () => win?.minimize());
-ipcMain.handle('navi:consolidate', async () => await consolidateMemory());
+
+// チャット内リンクを既定ブラウザで開く (https?: のみ許可)
+ipcMain.on('navi:open-external', (_e, url) => {
+  try {
+    const u = new URL(String(url));
+    if (u.protocol === 'https:' || u.protocol === 'http:') shell.openExternal(u.href);
+  } catch { /* 不正な URL は無視 */ }
+});
+ipcMain.handle('navi:consolidate', async () => {
+  const result = await consolidateMemory();
+  syncMemoryPush(); // 完了直後に非同期で push (失敗は無視)
+  return result;
+});
 ipcMain.handle('navi:profile', () => getProfile());
 ipcMain.handle('navi:get-config', () => config);
 ipcMain.handle('navi:get-theme', () =>

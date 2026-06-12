@@ -1,0 +1,67 @@
+# Android APK ビルド (Capacitor)
+# ローカルには Android SDK / Java が無いため、APK ビルドは本ワークフローが担う。
+# 起動: 手動 (workflow_dispatch) または vX.Y.Z タグ push (タグ時は Release に APK を添付)。
+# 注意: Capacitor 8 の android テンプレートは JavaVersion.VERSION_21 を要求するため JDK 21 を使う。
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write # softprops/action-gh-release が Release を作成・更新するため
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1' # CI では Electron 本体のバイナリは不要
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      # navi-shim.js の getTheme は webDir 内の themes/izanami/theme.json を fetch するため、
+      # webDir (renderer/) へテーマを複製してから sync する (renderer/themes/ は .gitignore 済み)
+      - name: Bundle themes into web assets
+        run: |
+          mkdir -p renderer/themes
+          cp -r themes/. renderer/themes/
+
+      - name: Sync web assets into Android project
+        run: npx cap sync android
+
+      - name: Build debug APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Collect APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk NAVI-android-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NAVI-android-debug
+          path: NAVI-android-debug.apk
+
+      - name: Attach APK to release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: NAVI-android-debug.apk

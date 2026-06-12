@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http: https:; style-src 'self'" /><!-- connect-src の http:/https: は Capacitor 版が PC リレー (navi-shim.js) へ fetch するため -->
+
   <title>NAVI.exe</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -95,6 +96,7 @@
     </div>
   </div>
 
+  <script src="navi-shim.js"></script><!-- 必ず app.js より前 — preload が無い環境 (Capacitor/ブラウザ) でのみ window.navi を HTTP 実装で定義 -->
   <script src="bg.js"></script>
   <script src="fx.js"></script>
   <script src="sprite.js"></script>

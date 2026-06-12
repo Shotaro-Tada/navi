@@ -9,3 +9,6 @@ launch.log
 # --- ビルド生成物 ---
 node_modules/
 dist/
+
+# --- Capacitor (CI が themes/ を webDir へ複製する作業コピー) ---
+renderer/themes/

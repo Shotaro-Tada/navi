@@ -169,6 +169,13 @@ body { display: flex; flex-direction: column; height: 100vh; }
   font-size: 11px;
   letter-spacing: 1px;
 }
+.msg a {
+  color: var(--teal);
+  text-decoration: underline;
+  word-break: break-all;
+  cursor: pointer;
+}
+.msg a:hover { color: #8ffadf; }
 
 #input-area {
   display: flex;

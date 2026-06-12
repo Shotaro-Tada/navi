@@ -19,10 +19,41 @@ let lastEmotion = null;
 
 const TIER_LABEL = { sonnet: 'SONNET', opus: 'OPUS', fable: 'FABLE' };
 
+// ---- URL リンク化 ----
+// テキスト中の https?:// URL を <a> に変換して el へ追記する。
+// innerHTML は使わず text ノードと <a> 要素を組み立てる (XSS 防止)。
+// URL は ASCII のみ (日本語文が直後に続くケースで巻き込まないため非 ASCII を除外)
+const URL_RE = /https?:\/\/[^\s<>"'\u0060\u0080-\uffff]+/g;
+
+function appendLinkified(el, text) {
+  let last = 0;
+  for (const m of text.matchAll(URL_RE)) {
+    // 文末の句読点・括弧閉じはリンクに含めない
+    const url = m[0].replace(/[.,;:!?)\]}>]+$/, '');
+    if (!url) continue;
+    if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
+    const a = document.createElement('a');
+    a.href = url;
+    a.textContent = url;
+    a.title = url;
+    el.appendChild(a);
+    last = m.index + url.length;
+  }
+  if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+}
+
+// リンクは Electron 内で開かず既定ブラウザへ (クリックは #chat で委譲)
+chat.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href]');
+  if (!a) return;
+  e.preventDefault();
+  window.navi.openExternal(a.href);
+});
+
 function addMsg(cls, text) {
   const div = document.createElement('div');
   div.className = `msg ${cls}`;
-  div.textContent = text;
+  appendLinkified(div, text);
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
   return div;
@@ -89,7 +120,9 @@ window.navi.onChunk((text) => {
   if (emo) lastEmotion = emo;
   if (!clean) return;
   if (!currentNaviMsg) currentNaviMsg = addMsg('navi', '');
-  currentNaviMsg.textContent += (currentNaviMsg.textContent ? '\n' : '') + clean;
+  // textContent への代入はリンク要素を壊すため、ノード追記でチャンクを継ぎ足す
+  if (currentNaviMsg.hasChildNodes()) currentNaviMsg.appendChild(document.createTextNode('\n'));
+  appendLinkified(currentNaviMsg, clean);
   chat.scrollTop = chat.scrollHeight;
 });
 
@@ -114,6 +147,15 @@ window.navi.onReminderStart(() => {
   addMsg('reminder', '⏰ 定時リマインド');
   currentNaviMsg = null;
   setBusy(true, 'REMINDING…');
+});
+
+// ---- 起動時バージョン確認 (main が GitHub の version.json と比較して通知) ----
+window.navi.onUpdateAvailable((info) => {
+  if (!info?.version) return;
+  const lines = [`🔔 新しいバージョン v${info.version} が公開されています。`];
+  if (info.notes) lines.push(String(info.notes));
+  if (info.url) lines.push(String(info.url));
+  addMsg('reminder', lines.join('\n'));
 });
 
 // ---- ⛩ 記憶の固定化 (手動トリガー) ----

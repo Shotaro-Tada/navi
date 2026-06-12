@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('navi', {
   transcribe: (wav) => ipcRenderer.invoke('navi:transcribe', wav),
   voiceFallback: () => ipcRenderer.invoke('navi:voice-fallback'),
   onReminderStart: (cb) => ipcRenderer.on('navi:reminder-start', () => cb()),
+  onUpdateAvailable: (cb) => ipcRenderer.on('navi:update-available', (_e, info) => cb(info)),
+  openExternal: (url) => ipcRenderer.send('navi:open-external', url),
   onMemStatus: (cb) => ipcRenderer.on('navi:memstatus', (_e, status) => cb(status)),
   close: () => ipcRenderer.send('navi:close'),
   minimize: () => ipcRenderer.send('navi:minimize'),
