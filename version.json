@@ -1,6 +1,6 @@
 {
-  "version": "0.7.2",
-  "notes": "v0.7.2: モバイル初回起動時のプロフィール自己修復 (接続確立後に名前/呼び方の表示を更新)",
+  "version": "0.7.3",
+  "notes": "v0.7.3: モバイル接続の自己診断 (6秒タイムアウト・失敗理由表示・STANDBYタップで接続先再設定)",
   "windows": "https://github.com/Shotaro-Tada/navi/releases/latest",
   "android": null
 }

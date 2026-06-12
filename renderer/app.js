@@ -254,8 +254,20 @@ setInterval(() => {
   document.getElementById('title').textContent = `NAVI.exe — ${name}`;
   setBusy(false);
   addMsg('navi', `お帰りなさいませ、${operator}。${name}、お側に控えております。本日はいかがなさいますか?`);
+  // モバイル起動診断: リレーへの通信が失敗していたら理由と復旧手順を表示する
+  if (window.__naviRelayError) {
+    addMsg('error', `PC に接続できませんでした (${window.__naviRelayError})。Tailscale の接続と PC の NAVI 稼働を確認してください。上部の STANDBY 表示をタップすると接続先 (URL/トークン) を再設定できます。`);
+  }
   input.focus();
 })();
+
+// STANDBY 表示のタップで接続先を再設定 (モバイルのみ — shim が reconfigureRelay を提供する)
+statusEl.addEventListener('click', () => {
+  if (typeof window.navi.reconfigureRelay !== 'function') return;
+  if (window.navi.reconfigureRelay()) {
+    addMsg('reminder', '☆ 接続先を更新しました。アプリを再起動すると挨拶から反映されます。');
+  }
+});
 
 // ---- モバイル初回起動の自己修復 ----
 // 接続情報 (リレー URL/トークン) の入力が挨拶の描画より後になった場合、

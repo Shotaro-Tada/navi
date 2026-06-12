@@ -53,19 +53,33 @@
     return sessionRelay;
   }
 
+  // タイムアウト付き fetch (既定6秒) — 不達ホストで起動処理がハングするのを防ぐ
+  function fetchWithTimeout(url, options, ms = 6000) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, { ...(options || {}), signal: ctrl.signal }).finally(() => clearTimeout(timer));
+  }
+
   async function relayFetch(pathname, options, interactive) {
     const { url, token } = ensureRelay(interactive);
     if (!url) throw new Error('リレー URL が未設定です (送信時に再度設定できます)');
-    const res = await fetch(url + pathname, {
-      ...(options || {}),
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(options && options.body ? { 'Content-Type': 'application/json' } : {}),
-      },
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-    return data;
+    try {
+      const res = await fetchWithTimeout(url + pathname, {
+        ...(options || {}),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(options && options.body ? { 'Content-Type': 'application/json' } : {}),
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      window.__naviRelayError = null; // 成功したら診断をクリア
+      return data;
+    } catch (err) {
+      const msg = err && err.name === 'AbortError' ? 'タイムアウト (6秒、到達不能)' : String(err?.message ?? err);
+      window.__naviRelayError = `${pathname}: ${msg}`; // 起動診断用に最後の失敗を記録
+      throw new Error(msg);
+    }
   }
 
   // ---- イベント購読 (preload の ipcRenderer.on 相当) ----
@@ -113,7 +127,7 @@
   async function getTheme() {
     for (const p of ['themes/izanami/theme.json', '../themes/izanami/theme.json']) {
       try {
-        const res = await fetch(p);
+        const res = await fetchWithTimeout(p, null, 4000);
         if (!res.ok) continue;
         const t = await res.json();
         return { name: t.name, char: t.char, bg: t.bg };
@@ -173,6 +187,17 @@
     openExternal: (url) => { window.open(url, '_blank', 'noopener'); },
     close: () => { /* モバイルでは閉じない */ },
     minimize: () => { /* モバイルでは最小化しない */ },
+
+    // 接続先の再設定 (app.js が STANDBY 表示タップで呼ぶ)。保存済み設定を消して聞き直す
+    reconfigureRelay: () => {
+      try {
+        localStorage.removeItem(LS_URL);
+        localStorage.removeItem(LS_TOKEN);
+      } catch { /* 消せなくても prompt で上書きされる */ }
+      sessionRelay = null;
+      const r = ensureRelay(true);
+      return !!(r && r.url);
+    },
   };
 
   // 初回 (URL 未設定) はこの場で同期的に接続設定を聞く。
