@@ -114,6 +114,20 @@ export function createRelayServer(deps) {
         return;
       }
 
+      // ☾ 手動同期: PC 側の記憶を GitHub と同期 (pull+commit+push)。モバイルの ☾ ボタン用
+      if (req.method === 'POST' && pathname === '/sync') {
+        if (typeof deps.sync !== 'function') {
+          sendJson(res, 501, { error: 'sync not supported' });
+          return;
+        }
+        try {
+          sendJson(res, 200, { result: await deps.sync() });
+        } catch (err) {
+          sendJson(res, 500, { error: String(err?.message ?? err) });
+        }
+        return;
+      }
+
       if (req.method === 'GET' && pathname === '/memory/index') {
         try {
           sendJson(res, 200, { index: readFileSync(deps.memoryPath, 'utf8') });

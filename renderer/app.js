@@ -158,6 +158,21 @@ window.navi.onUpdateAvailable((info) => {
   addMsg('reminder', lines.join('\n'));
 });
 
+// ---- ☾ 記憶の GitHub 同期 (手動トリガー、Win=IPC / Android=リレー /sync) ----
+document.getElementById('btn-sync').addEventListener('click', async () => {
+  if (appBusy) return;
+  setBusy(true, 'SYNCING…');
+  try {
+    const result = window.navi.syncMemory
+      ? await window.navi.syncMemory()
+      : 'この版は ☾ 同期に未対応です (アプリを更新してください)';
+    addMsg('reminder', result || '☾ 同期完了');
+  } catch (err) {
+    addMsg('error', `同期エラー: ${err}`);
+  }
+  setBusy(false);
+});
+
 // ---- ⛩ 記憶の固定化 (手動トリガー) ----
 document.getElementById('btn-slp').addEventListener('click', async () => {
   if (appBusy) return;

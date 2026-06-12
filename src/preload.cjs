@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('navi', {
   onDone: (cb) => ipcRenderer.on('navi:done', () => cb()),
   onError: (cb) => ipcRenderer.on('navi:error', (_e, msg) => cb(msg)),
   consolidate: () => ipcRenderer.invoke('navi:consolidate'),
+  syncMemory: () => ipcRenderer.invoke('navi:sync-memory'),
   profile: () => ipcRenderer.invoke('navi:profile'),
   getConfig: () => ipcRenderer.invoke('navi:get-config'),
   getTheme: () => ipcRenderer.invoke('navi:get-theme'),

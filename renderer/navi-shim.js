@@ -146,6 +146,15 @@
       try { localStorage.setItem(LS_MODEL, String(tier)); } catch { /* 保存不可は無視 */ }
     },
 
+    // ☾ 手動同期: PC のリレー経由で記憶を GitHub と同期させる
+    syncMemory: async () => {
+      try {
+        return String((await relayFetch('/sync', { method: 'POST', body: '{}' }, true)).result || '☾ 同期しました');
+      } catch (err) {
+        return `☾ 同期できません: ${String(err?.message ?? err)}`;
+      }
+    },
+
     // ---- PC 側でのみ利用できる機能 (noop) ----
     consolidate: async () => PC_ONLY,
     inspire: async () => null, // null は app.js 側で「何もしない」扱い

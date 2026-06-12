@@ -186,6 +186,34 @@ async function syncMemoryPush() {
   }
 }
 
+// ☾ 手動同期 (UI ボタン / リレー /sync 共用): pull → add/commit → push を一括実行し、
+// ユーザー向けの短い結果メッセージを返す。会話中の直接書き込み (予定メモ等) を
+// 固定化を待たずに GitHub へ反映するための操作。
+async function syncMemoryNow() {
+  const notes = [];
+  try {
+    await gitMemory(['pull', '--ff-only']);
+  } catch {
+    notes.push('pull は見送り (オフラインか競合)');
+  }
+  try {
+    await gitMemory(['add', '-A']);
+    let committed = true;
+    try {
+      await gitMemory(['commit', '-m', `manual sync ${new Date().toISOString()}`]);
+    } catch {
+      committed = false; // 変更なし
+    }
+    await gitMemory(['push']);
+    notes.unshift(committed ? '新しい記憶を月へ納めました' : '手元に新しい変更なし (同期確認済み)');
+  } catch {
+    notes.push('push 失敗 — 次回の同期で再送されます');
+  }
+  return `☾ ${notes.join(' / ')}`;
+}
+
+ipcMain.handle('navi:sync-memory', async () => await syncMemoryNow());
+
 // ---- PC リレーサーバ (Android 版の入口、src/relay.js) ----
 // config.relay.enabled = true のときだけ起動する (既定 false なので現運用に影響なし)。
 // token が空なら初回に生成して保存する。chatBusy は isBusy/setBusy 経由で relay と共有し、
@@ -206,6 +234,7 @@ function startRelayIfEnabled() {
       getName: () => themeName,
       version: localVersion(),
       memoryPath: MEMORY_PATH,
+      sync: syncMemoryNow,
     });
   } catch (err) {
     console.log('[relay] start failed:', err?.message ?? err);
