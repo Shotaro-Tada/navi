@@ -1,6 +1,6 @@
 {
   "name": "navi-exe",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "description": "NAVI.exe - pixel-art personal navigator powered by Claude (Agent SDK, subscription auth)",
   "type": "module",
   "main": "src/main.js",
@@ -36,7 +36,8 @@
     }
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "latest"
+    "@anthropic-ai/claude-agent-sdk": "latest",
+    "@capacitor-community/speech-recognition": "^7.0.1"
   },
   "devDependencies": {
     "@capacitor/android": "^8.4.0",

@@ -1,6 +1,6 @@
 {
-  "version": "0.8.2",
-  "notes": "v0.8.2: 用途別タイムアウト (会話240秒/同期60秒/照会6秒) — 会話が6秒で切断される問題の修正",
+  "version": "0.9.0",
+  "notes": "v0.9.0: Android アイコンをイザナミに統一 (Win版と同期) + スマホ音声入力 (長押しで Android ネイティブ音声認識)",
   "windows": "https://github.com/Shotaro-Tada/navi/releases/latest",
   "android": null
 }

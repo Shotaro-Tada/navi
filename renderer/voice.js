@@ -110,6 +110,22 @@
     starting = true;
     stopRequested = false;
     try {
+      // Android ネイティブ音声認識 (Capacitor): Google の音声ダイアログに委ねる。
+      // ダイアログが録音と終了判定を管理するため、長押しの解放とは独立して完結する。
+      if (typeof window.navi.nativeVoiceStart === 'function') {
+        setRecordingUI(true);
+        try {
+          const text = await window.navi.nativeVoiceStart(voiceLang);
+          if (text) {
+            input.value = (input.value ? input.value + ' ' : '') + text;
+            input.focus();
+          }
+        } catch (err) {
+          addMsg('error', `音声認識エラー: ${String(err?.message ?? err)}`);
+        }
+        setRecordingUI(false);
+        return;
+      }
       const available = await window.navi.voiceAvailable().catch(() => true);
       if (!available) {
         // 内蔵エンジンが無い言語では Windows 標準の音声入力 (Win+H) を代わりに起動する

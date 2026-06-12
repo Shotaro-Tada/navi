@@ -264,6 +264,32 @@
     },
   };
 
+  // ---- Android ネイティブ音声認識 (Capacitor プラグイン、存在する時のみ有効化) ----
+  // 長押し → Google の音声入力ダイアログ → 認識結果を返す。voice.js がこの API の有無で分岐する。
+  const SR = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SpeechRecognition;
+  if (SR) {
+    window.navi.voiceAvailable = async () => {
+      try {
+        const r = await SR.available();
+        return !!(r && (r.available !== undefined ? r.available : r));
+      } catch {
+        return false;
+      }
+    };
+    window.navi.nativeVoiceStart = async (lang) => {
+      try {
+        if (SR.requestPermissions) await SR.requestPermissions();
+      } catch { /* 拒否されていれば start が失敗して通知される */ }
+      const res = await SR.start({
+        language: lang === 'en' ? 'en-US' : 'ja-JP',
+        partialResults: false,
+        popup: true,
+      });
+      const m = res && res.matches;
+      return m && m[0] ? String(m[0]) : '';
+    };
+  }
+
   // 初回 (URL 未設定) はこの場で同期的に接続設定を聞く。
   // <script> は順次実行されるため、この prompt は app.js の起動処理 (profile() 等の relayFetch)
   // より必ず先に完了する — 設定済みの状態で挨拶に正しい名前が出る。
