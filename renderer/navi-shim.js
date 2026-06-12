@@ -239,6 +239,7 @@
     onUpdateAvailable: subscribeNoop,
     onMemStatus: subscribeNoop,
     onSpeakWav: subscribeNoop, // 読み上げ WAV は PC 側のみ発火
+    onVoiceAvailability: subscribeNoop, // VOICEVOX エンジン自動起動の通知も PC 側のみ
 
     openExternal: (url) => { window.open(url, '_blank', 'noopener'); },
     close: () => { /* モバイルでは閉じない */ },

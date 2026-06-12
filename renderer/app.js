@@ -180,6 +180,13 @@ function playVoiceWav(wav) {
 
 if (typeof window.navi.onSpeakWav === 'function') window.navi.onSpeakWav(playVoiceWav);
 
+// main 側の VOICEVOX エンジン自動起動が成功した時の通知 — 🔊 トグルを動的に活性化する
+if (typeof window.navi.onVoiceAvailability === 'function') {
+  window.navi.onVoiceAvailability((info) => {
+    if (info?.available) voiceBtn.style.display = '';
+  });
+}
+
 voiceBtn.addEventListener('click', () => {
   voiceEnabled = !voiceEnabled;
   if (!voiceEnabled) stopVoice();
@@ -231,6 +238,16 @@ window.navi.onReminderStart(() => {
   currentNaviMsg = null;
   setBusy(true, 'REMINDING…');
 });
+
+// ---- 議事録作成 (会議の文字起こし完了後に main が ask() を完走させて流す) ----
+// PC 版 (preload) のみのチャネル — navi-shim (モバイル) には無いためガードする。
+if (typeof window.navi.onMinutesStart === 'function') {
+  window.navi.onMinutesStart(() => {
+    addMsg('reminder', '📝 議事録作成');
+    currentNaviMsg = null;
+    setBusy(true, 'MINUTES…');
+  });
+}
 
 // ---- 起動時バージョン確認 (main が GitHub の version.json と比較して通知) ----
 window.navi.onUpdateAvailable((info) => {

@@ -21,10 +21,18 @@ contextBridge.exposeInMainWorld('navi', {
   voiceTtsAvailable: () => ipcRenderer.invoke('navi:voice-tts-available'),
   setVoice: (enabled) => ipcRenderer.send('navi:set-voice', enabled),
   onSpeakWav: (cb) => ipcRenderer.on('navi:speak-wav', (_e, wav) => cb(wav)),
+  onVoiceAvailability: (cb) => ipcRenderer.on('navi:voice-availability', (_e, info) => cb(info)),
   onReminderStart: (cb) => ipcRenderer.on('navi:reminder-start', () => cb()),
+  onMinutesStart: (cb) => ipcRenderer.on('navi:minutes-start', () => cb()),
   onUpdateAvailable: (cb) => ipcRenderer.on('navi:update-available', (_e, info) => cb(info)),
   openExternal: (url) => ipcRenderer.send('navi:open-external', url),
   onMemStatus: (cb) => ipcRenderer.on('navi:memstatus', (_e, status) => cb(status)),
+  // 会議録音 (renderer/meeting.js ↔ main の録音ファイル追記・トレイ制御)
+  meetingStart: (info) => ipcRenderer.send('navi:meeting-start', info),
+  meetingChunk: (buf) => ipcRenderer.send('navi:meeting-chunk', buf),
+  meetingStop: (info) => ipcRenderer.send('navi:meeting-stop', info),
+  onMeetingControl: (cb) => ipcRenderer.on('navi:meeting-control', (_e, cmd) => cb(cmd)),
+  onMeetingStatus: (cb) => ipcRenderer.on('navi:meeting-status', (_e, msg) => cb(msg)),
   close: () => ipcRenderer.send('navi:close'),
   minimize: () => ipcRenderer.send('navi:minimize'),
 });

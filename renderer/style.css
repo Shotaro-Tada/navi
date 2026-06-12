@@ -104,6 +104,8 @@ body { display: flex; flex-direction: column; height: 100vh; }
   opacity: 0.85;
   text-shadow: 0 1px 3px #000;
 }
+/* 会議録音中 (renderer/meeting.js): LISTENING● 経過時間 を赤系で表示 */
+#navi-status.recording { color: #ff6b6b; opacity: 1; }
 
 #model-tabs {
   position: absolute;
