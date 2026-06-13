@@ -23,6 +23,16 @@
   let timerId = null;
   let chunkQueue = Promise.resolve(); // チャンク送出の順序保証 (最終チャンク→stop の順を守る)
 
+  // タイトルバーの 🎙 ボタン (PC 環境のみ表示)。トレイの 🎙 と同じ機能の主動線。
+  const meetingBtn = document.getElementById('btn-meeting');
+  if (meetingBtn) {
+    meetingBtn.style.display = ''; // PC でのみ表示 (mobile は冒頭の early-return で隠れたまま)
+    meetingBtn.addEventListener('click', () => {
+      if (recording) stop();
+      else start('auto'); // 自動判定 — 日英混在の会議でも言語を選ばず始められる
+    });
+  }
+
   function releaseStreams() {
     try { micStream?.getTracks().forEach((t) => t.stop()); } catch { /* 停止済みなら無視 */ }
     try { sysStream?.getTracks().forEach((t) => t.stop()); } catch { /* 同上 */ }
@@ -52,7 +62,17 @@
     clearInterval(timerId);
     timerId = null;
     statusEl.classList.remove('recording');
+    reflectButton();
     if (!appBusy) setBusy(appBusy); // STANDBY 表示へ戻す (会話中なら onDone に任せる)
+  }
+
+  // タイトルバー 🎙 ボタンの見た目を録音状態に同期する (トレイ操作・ボタン操作の両方を反映)
+  function reflectButton() {
+    if (!meetingBtn) return;
+    meetingBtn.classList.toggle('recording', recording);
+    meetingBtn.title = recording
+      ? '会議の拝聴を終了'
+      : '会議を拝聴 (クリックで開始・自動判定)';
   }
 
   // ---- 開始 / 停止 ----
@@ -100,6 +120,7 @@
       startedAt = Date.now();
       timerId = setInterval(updateStatus, 1000);
       updateStatus();
+      reflectButton();
       const langLabel = { ja: '日本語', en: 'English', auto: '自動判定' }[language];
       addMsg('reminder', `🎙 会議を拝聴しております (${langLabel})。終了はトレイの「⏹ 拝聴を終了」から。録音中も会話できます。`);
     } catch (err) {

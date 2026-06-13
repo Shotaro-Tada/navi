@@ -40,6 +40,15 @@ body { display: flex; flex-direction: column; height: 100vh; }
 #btn-close:hover { background: #a23; }
 #btn-voice.off { opacity: 0.45; } /* 読み上げ OFF (🔇) の消灯表示 */
 #btn-bgm.off { opacity: 0.45; } /* BGM OFF (♪) の消灯表示 */
+/* 会議拝聴ボタン: 既定は非表示で、meeting.js が PC 環境でのみ表示する
+   (Capacitor/モバイルでは meeting.js が early-return するため隠れたまま)。
+   録音中は赤く明滅 (rec-pulse は #send.recording と共用)。 */
+#btn-meeting { display: none; }
+#btn-meeting.recording {
+  color: #ff6b6b;
+  border-color: #ff3b3b;
+  animation: rec-pulse 1.2s ease-in-out infinite;
+}
 
 #stage {
   position: relative;
