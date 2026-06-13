@@ -85,15 +85,24 @@
     language = ['ja', 'en', 'auto'].includes(lang) ? lang : 'ja';
     try {
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // システム音声: video は Electron の仕様上要求が必須なだけなので、取得直後に止める
-      sysStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-      sysStream.getVideoTracks().forEach((t) => t.stop());
+      // システム音声 (相手の声) は既定で取り込む — main の setDisplayMediaRequestHandler が
+      // loopback を自動許可するため選択ダイアログは出ない。取得に失敗しても録音を止めず、
+      // マイクのみで続行する (対面会議や loopback 非対応環境のため)。video は Electron の
+      // 仕様上要求が必須なだけなので取得直後に止める。
+      let sysCaptured = false;
+      try {
+        sysStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        sysStream.getVideoTracks().forEach((t) => t.stop());
+        sysCaptured = sysStream.getAudioTracks().length > 0;
+      } catch {
+        sysStream = null; // システム音声が取れなくてもマイクで録音は続ける
+      }
 
-      // マイク + ループバックを 1 ストリームへ混合
+      // マイク (+ 取れていればシステム音声) を 1 ストリームへ混合
       mixCtx = new AudioContext();
       const dest = mixCtx.createMediaStreamDestination();
       mixCtx.createMediaStreamSource(micStream).connect(dest);
-      const sysTracks = sysStream.getAudioTracks();
+      const sysTracks = sysStream ? sysStream.getAudioTracks() : [];
       if (sysTracks.length) {
         mixCtx.createMediaStreamSource(new MediaStream(sysTracks)).connect(dest);
       }
@@ -125,7 +134,8 @@
       updateStatus();
       reflectButton();
       const langLabel = { ja: '日本語', en: 'English', auto: '自動判定' }[language];
-      addMsg('reminder', `🎙 会議を拝聴しております (${langLabel})。終了はトレイの「⏹ 拝聴を終了」から。録音中も会話できます。`);
+      const srcLabel = sysCaptured ? 'マイク＋システム音声' : 'マイクのみ (システム音声は取得できませんでした)';
+      addMsg('reminder', `🎙 会議を拝聴しております (${langLabel}・${srcLabel})。終了は 🎙 ボタンかトレイの「⏹ 拝聴を終了」から。録音中も会話できます。`);
     } catch (err) {
       releaseStreams();
       clearStatus();

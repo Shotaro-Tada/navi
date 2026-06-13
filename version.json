@@ -1,6 +1,6 @@
 {
-  "version": "1.1.2",
-  "notes": "v1.1.2: タイトルバー 🎙 会議ボタンが表示されない不具合を修正 (CSS display:none を明示値で上書き)",
+  "version": "1.1.3",
+  "notes": "v1.1.3: 会議録音でシステム音声(相手の声)を既定取り込み・取得失敗時もマイクのみで継続。取り込み状況を開始時に表示",
   "windows": "https://github.com/Shotaro-Tada/navi/releases/latest",
   "android": null
 }
