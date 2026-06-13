@@ -26,7 +26,10 @@
   // タイトルバーの 🎙 ボタン (PC 環境のみ表示)。トレイの 🎙 と同じ機能の主動線。
   const meetingBtn = document.getElementById('btn-meeting');
   if (meetingBtn) {
-    meetingBtn.style.display = ''; // PC でのみ表示 (mobile は冒頭の early-return で隠れたまま)
+    // CSS の #btn-meeting{display:none} を上書きして表示する。空文字 '' だと
+    // インライン解除→スタイルシートの none が残り隠れたままになるため明示値で上書き
+    // (mobile は冒頭の early-return でここに来ず、CSS の none のまま隠れる)。
+    meetingBtn.style.display = 'inline-block';
     meetingBtn.addEventListener('click', () => {
       if (recording) stop();
       else start('auto'); // 自動判定 — 日英混在の会議でも言語を選ばず始められる

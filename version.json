@@ -1,6 +1,6 @@
 {
-  "version": "1.1.1",
-  "notes": "v1.1.1: タイトルバーに 🎙 会議拝聴ボタンを追加 (トレイの奥に隠れていた会議機能を主動線に。クリックで開始/停止・自動判定)",
+  "version": "1.1.2",
+  "notes": "v1.1.2: タイトルバー 🎙 会議ボタンが表示されない不具合を修正 (CSS display:none を明示値で上書き)",
   "windows": "https://github.com/Shotaro-Tada/navi/releases/latest",
   "android": null
 }
